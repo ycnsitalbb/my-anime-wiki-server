@@ -11,6 +11,7 @@ const initDB = async () => {
   });
   await client.connect();
   _db = client.db("my-anime-wiki");
+  console.log("database connection success")
   return _db;
 };
 

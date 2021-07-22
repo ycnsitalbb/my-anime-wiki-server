@@ -1,12 +1,14 @@
 const express = require("express");
 const cors = require("cors");
-const { initDB } = require("./MongoDB");
+const { initDB } = require("./db");
 const {
   createUser,
   findUser,
   addToList,
   removeFromList,
-} = require("../my-anime-wiki-server/service/user");
+  createList,
+  deleteList,
+} = require("./service/user");
 const bodyParser = require("body-parser");
 
 const app = express();
@@ -39,29 +41,59 @@ app.post("/users", async (req, res) => {
     });
   }
 });
-
-app.post("/users/:userId/animeList", async (req, res) => {
-  console.log("add anime to list request received, processing");
+// create new list
+app.post("/users/:userId/animeList",async (req,res)=>{
+  console.log("create list request received");
   const userId = req.params.userId;
-  const anime = req.body.anime;
-  await addToList(userId, anime);
+  const listName = req.body.listName
+  await createList(userId,listName)
   const results = await findUser(userId);
   res.send({
     animeList: results[0].animeList,
-    message: "we have added the anime of" + anime.mal_id + "to anime list",
+    message: "we have added the list of" + listName
+  });
+})
+app.post("/users/:userId/animeList/:listId",async (req,res)=>{
+  console.log("delete list request received");
+  const userId = req.params.userId;
+  const listId = req.params.listId;
+  await deleteList(userId,listId)
+  const results = await findUser(userId);
+  res.send({
+    animeList: results[0].animeList,
+    message: "we have deleted the list of" + listId
+  });
+})
+// add anime into a specific list
+app.post("/users/:userId/animeList/:listId/anime", async (req, res) => {
+  console.log("add anime to list request received, processing");
+
+  const userId = req.params.userId;
+  const anime = req.body.anime;
+  const listId = req.params.listId;
+  console.log(userId)
+  console.log(anime)
+  console.log(listId)
+  await addToList(userId, listId,anime);
+  const results = await findUser(userId);
+  res.send({
+    animeList: results[0].animeList,
+    message: "we have added the anime of " + anime.mal_id + " to anime list",
   });
 });
-app.delete("/users/:userId/animeList/:animeId", async (req, res) => {
+// add anime from a specific list
+app.delete("/users/:userId/animeList/:listId/:animeId", async (req, res) => {
   console.log("remove anime from list request received, processing");
   const userId = req.params.userId;
+  const listId = req.params.listId; 
   // While the anime id in anime object is saved as number,the parameter pass in a string
   // We should turn it into a number for later db query
   const animeId = Number(req.params.animeId);
-  await removeFromList(userId, animeId);
+  await removeFromList(userId, listId,animeId);
   const results = await findUser(userId);
   res.send({
     animeList: results[0].animeList,
-    message: "we have removed the anime of" + animeId + "from anime list",
+    message: "we have removed the anime of " + animeId + " from anime list",
   });
 });
 
