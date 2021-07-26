@@ -14,7 +14,11 @@ const bodyParser = require("body-parser");
 const app = express();
 app.use(bodyParser.json());
 app.use(cors());
-const port = 3001;
+
+let port = process.env.PORT;
+if (port == null || port == "") {
+  port = 3001;
+}
 
 initDB();
 
