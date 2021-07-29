@@ -2,13 +2,18 @@ const express = require("express");
 const cors = require("cors");
 const { initDB } = require("./db");
 const {
-  createUser,
-  findUser,
+  createGoogleUser,
+  findGoogleUser,
+  createNormalUser,
+  findNormalUser,
+  findUserById,
+} = require("./service/user/auth");
+const {
   addToList,
   removeFromList,
   createList,
   deleteList,
-} = require("./service/user");
+} = require("./service/user/anime");
 const bodyParser = require("body-parser");
 
 const app = express();
@@ -23,82 +28,116 @@ if (port == null || port == "") {
 initDB();
 
 app.get("/", (req, res) => {
-  res.send("Hello World!");
+  res.send("Welcome to my-anime-wiki server");
 });
-app.post("/users", async (req, res) => {
-  console.log("log in request received");
-  const userGoogleId = req.body.userId;
-  const results = await findUser(userGoogleId);
-  if (!!results && results.length == 1) {
-    console.log("user found");
-    res.send({
-      message: "we have found the user, we are going to send back his data",
-      animeList: results[0].animeList,
-    });
+
+//normal sign up
+app.post("/users/signup", async (req, res) => {
+  console.log("user signup request received");
+  const username = req.body.username;
+  const password = req.body.password;
+  const email = req.body.email;
+
+  createNormalUser(username, password, email);
+  console.log("user signup complete");
+  res.send({
+    message: "user sign up complete",
+  });
+});
+
+
+// normal Login
+app.post("/users/login/normal", async (req, res) => {
+  console.log("normaluser log in request received");
+  
+  const username = req.body.username;
+  const password = req.body.password;
+  console.log(username)
+  console.log(password)
+  const userData = await findNormalUser(username, password);
+  if (!!userData) {
+    console.log("user found,authentication success");
+    res.send(userData);
   } else {
-    console.log("user not found, create a new user");
-    await createUser(userGoogleId);
-    res.send({
-      message:
-        "we haven't found the user in our db, let's create his profile in our system",
-      animeList: [],
-    });
+    console.log("user not found, authentication failed");
+    res.status(400)
+    res.send({ state: "AUTHENTICATION_FAILED", message: "invalid combination of username and password" });
   }
 });
+
+// google login
+app.post("/users/login/google", async (req, res) => {
+  console.log("google log in request received");
+  const userGoogleId = req.body.userGoogleId;
+  const userData = await findGoogleUser(userGoogleId);
+  if (!!userData) {
+    console.log("user found");
+    res.send(userData);
+  } else {
+    console.log("google user not found, create a new user");
+    await createGoogleUser(userGoogleId);
+    const userData = await findGoogleUser(userGoogleId);
+    res.send(userData);
+  }
+});
+
 // create new list
-app.post("/users/:userId/animeList",async (req,res)=>{
+app.post("/users/:userId/animeList", async (req, res) => {
   console.log("create list request received");
   const userId = req.params.userId;
-  const listName = req.body.listName
-  await createList(userId,listName)
-  const results = await findUser(userId);
-  res.send({
-    animeList: results[0].animeList,
-    message: "we have added the list of" + listName
-  });
-})
-app.post("/users/:userId/animeList/:listId",async (req,res)=>{
+  const listName = req.body.listName;
+  await createList(userId, listName);
+  const data = await findUserById(userId);
+  if (data) {
+    res.send(data);
+  } else {
+    res.send({ code: 400, message: "user not found" });
+  }
+});
+// delete list
+app.delete("/users/:userId/animeList/:listId", async (req, res) => {
   console.log("delete list request received");
   const userId = req.params.userId;
   const listId = req.params.listId;
-  await deleteList(userId,listId)
-  const results = await findUser(userId);
-  res.send({
-    animeList: results[0].animeList,
-    message: "we have deleted the list of" + listId
-  });
-})
+  await deleteList(userId, listId);
+  const data = await findUserById(userId);
+  if (data) {
+    res.send(data);
+  } else {
+    res.send({ code: 400, message: "user not found" });
+  }
+});
+
 // add anime into a specific list
 app.post("/users/:userId/animeList/:listId/anime", async (req, res) => {
   console.log("add anime to list request received, processing");
-
   const userId = req.params.userId;
   const anime = req.body.anime;
   const listId = req.params.listId;
-  console.log(userId)
-  console.log(anime)
-  console.log(listId)
-  await addToList(userId, listId,anime);
-  const results = await findUser(userId);
-  res.send({
-    animeList: results[0].animeList,
-    message: "we have added the anime of " + anime.mal_id + " to anime list",
-  });
+  await addToList(userId, listId, anime);
+  const data = await findUserById(userId);
+  if (data) {
+    res.send(data);
+  } else {
+    res.send({ code: 400, message: "user not found" });
+  }
 });
+
 // add anime from a specific list
 app.delete("/users/:userId/animeList/:listId/:animeId", async (req, res) => {
   console.log("remove anime from list request received, processing");
   const userId = req.params.userId;
-  const listId = req.params.listId; 
+  const listId = req.params.listId;
   // While the anime id in anime object is saved as number,the parameter pass in a string
   // We should turn it into a number for later db query
   const animeId = Number(req.params.animeId);
-  await removeFromList(userId, listId,animeId);
-  const results = await findUser(userId);
-  res.send({
-    animeList: results[0].animeList,
-    message: "we have removed the anime of " + animeId + " from anime list",
-  });
+  await removeFromList(userId, listId, animeId);
+  const data = await findUserById(userId);
+  if (data) {
+    res.send(data);
+  } else {
+    res.send({ code: 400, message: "user not found" });
+  }
 });
 
 app.listen(port, async () => {
